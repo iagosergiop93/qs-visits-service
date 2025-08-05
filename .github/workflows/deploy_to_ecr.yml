@@ -1,0 +1,88 @@
+# This workflow will build a Java project with Gradle, create a Docker image,
+# and push it to Amazon ECR.
+#
+# To use this workflow, you must create two secrets in your
+# GitHub repository settings:
+# 1. AWS_ACCESS_KEY_ID: The access key for your AWS IAM user.
+# 2. AWS_SECRET_ACCESS_KEY: The secret key for your AWS IAM user.
+
+name: Build and Push to Amazon ECR
+
+# Controls when the workflow will run
+on:
+  push:
+    branches: [ "main" ] # Triggers the workflow on push events to the main branch
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build-and-push-image:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    
+    # Environment variables available to all steps in this job
+    env:
+      AWS_REGION: us-east-2 # Change to your AWS region
+      ECR_REPOSITORY: booking-system/qs-visits-service # Change to your ECR repository name
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Step 1: Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up JDK 21 for the Maven build
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'corretto'
+
+      # Step 3: Build the Spring Boot application with Gradle
+      # This creates the .jar file needed for the Docker image
+      - name: Build with Gradle
+        run: ./gradlew clean build -x test
+
+      # Step 4: Configure AWS credentials
+      # Uses the official AWS action to configure credentials from secrets
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Step 5: Log in to Amazon ECR
+      # Retrieves an authentication token and configures Docker to use it
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Step 6: Define Docker image metadata (tags)
+      # This step creates tags for the Docker image. We'll use the Git SHA as a unique tag.
+      - name: Define image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+          tags: |
+            type=sha,prefix=,format=short
+            
+      # Step 7: Build and push the Docker image
+      # This step uses the Docker build-push-action to build the image from your Dockerfile
+      # and push it to the ECR repository with the tags defined in the previous step.
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
+
+      # Step 8: Logout of Amazon ECR
+      # A security best practice to log out after the push is complete
+      - name: Logout of Amazon ECR
+        if: always()
+        run: docker logout ${{ steps.login-ecr.outputs.registry }}

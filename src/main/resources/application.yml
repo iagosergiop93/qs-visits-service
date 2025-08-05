@@ -1,7 +1,21 @@
 server:
-  port: 8083
+  port: 8084
 
 spring:
   application:
     name: qs-visits-service
+  profiles:
+    active: ${QS_ENV}
+
+  config:
+    import: configserver:http://config-server.booking-app:8888
+
+    cloud:
+      config:
+        uri: http://config-server.booking-app:8888
+        username: ${QS_USERNAME}
+        password: ${QS_PASSWORD}
+        label: main
+        fail-fast: true
+
 

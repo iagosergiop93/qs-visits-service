@@ -16,7 +16,6 @@ import com.booking.qs_visits_service.repositories.VisitTypeRepository;
 import com.booking.qs_visits_service.utils.CustomerUtils;
 import com.booking.qs_visits_service.utils.VisitUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
